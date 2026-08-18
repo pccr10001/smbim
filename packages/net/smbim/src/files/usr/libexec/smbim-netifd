@@ -1,0 +1,101 @@
+#!/bin/sh
+
+. /lib/netifd/netifd-proto.sh
+
+action="$1"
+interface="$SMBIM_INTERFACE"
+ifname="$SMBIM_IFNAME"
+
+remove_dynamic() {
+	ubus -S call "network.interface.${interface}_4" remove >/dev/null 2>&1 || true
+	ubus -S call "network.interface.${interface}_6" remove >/dev/null 2>&1 || true
+}
+
+if [ "$action" = down ]; then
+	remove_dynamic
+	proto_init_update "*" 0
+	proto_send_update "$interface"
+	exit 0
+fi
+
+[ "$action" = update ] || exit 2
+IFS= read -r payload
+json_load "$payload" || exit 2
+
+json_select ipv4
+json_get_values ipv4_addresses addresses
+json_get_var ipv4_gateway gateway
+json_get_values ipv4_dns dns
+json_get_var ipv4_mtu mtu
+json_select ..
+json_select ipv6
+json_get_values ipv6_addresses addresses
+json_get_var ipv6_gateway gateway
+json_get_values ipv6_dns dns
+json_get_var ipv6_mtu mtu
+json_select ..
+
+proto_init_update "$ifname" 1
+proto_send_update "$interface"
+
+zone="$(fw4 -q network "$interface" 2>/dev/null || fw3 -q network "$interface" 2>/dev/null)"
+
+if [ -n "$ipv4_addresses" ] && [ "$SMBIM_IP_TYPE" != ipv6 ]; then
+	json_init
+	json_add_string name "${interface}_4"
+	json_add_string ifname "@$interface"
+	json_add_string proto static
+	json_add_array ipaddr
+	for address in $ipv4_addresses; do json_add_string "" "$address"; done
+	json_close_array
+	[ -n "$ipv4_gateway" ] && json_add_string gateway "$ipv4_gateway"
+	json_add_boolean defaultroute "${SMBIM_DEFAULT_ROUTE:-1}"
+	json_add_int metric "${SMBIM_METRIC:-0}"
+	json_add_boolean peerdns "${SMBIM_PEER_DNS:-1}"
+	json_add_array dns
+	[ "$SMBIM_PEER_DNS" = 1 ] && for server in $ipv4_dns; do json_add_string "" "$server"; done
+	for server in $SMBIM_CUSTOM_DNS; do json_add_string "" "$server"; done
+	json_close_array
+	[ -n "$zone" ] && json_add_string zone "$zone"
+	json_close_object
+	ubus call network add_dynamic "$(json_dump)" >/dev/null
+	else
+		ubus -S call "network.interface.${interface}_4" remove >/dev/null 2>&1 || true
+	fi
+
+if [ -n "$ipv6_addresses" ] && [ "$SMBIM_IP_TYPE" != ipv4 ]; then
+	json_init
+	json_add_string name "${interface}_6"
+	json_add_string ifname "@$interface"
+	json_add_string proto static
+	json_add_array ip6addr
+	for address in $ipv6_addresses; do json_add_string "" "$address"; done
+	json_close_array
+	if [ "$SMBIM_DELEGATE" = 1 ]; then
+		json_add_array ip6prefix
+		for address in $ipv6_addresses; do json_add_string "" "$address"; done
+		json_close_array
+	fi
+	[ -n "$ipv6_gateway" ] && json_add_string ip6gw "$ipv6_gateway"
+	json_add_boolean defaultroute "${SMBIM_DEFAULT_ROUTE:-1}"
+	json_add_int metric "${SMBIM_METRIC:-0}"
+	json_add_boolean peerdns "${SMBIM_PEER_DNS:-1}"
+	json_add_boolean delegate "${SMBIM_DELEGATE:-1}"
+	json_add_boolean sourcefilter "${SMBIM_SOURCE_FILTER:-1}"
+	json_add_array dns
+	[ "$SMBIM_PEER_DNS" = 1 ] && for server in $ipv6_dns; do json_add_string "" "$server"; done
+	for server in $SMBIM_CUSTOM_DNS; do json_add_string "" "$server"; done
+	json_close_array
+	[ -n "$zone" ] && json_add_string zone "$zone"
+	json_close_object
+	ubus call network add_dynamic "$(json_dump)" >/dev/null
+	else
+		ubus -S call "network.interface.${interface}_6" remove >/dev/null 2>&1 || true
+	fi
+
+mtu="$SMBIM_MTU"
+[ -n "$mtu" ] && [ "$mtu" -gt 0 ] 2>/dev/null || {
+	mtu="$ipv4_mtu"
+	[ "${ipv6_mtu:-0}" -gt "${mtu:-0}" ] 2>/dev/null && mtu="$ipv6_mtu"
+}
+[ -n "$mtu" ] && [ "$mtu" -gt 0 ] 2>/dev/null && ip link set dev "$ifname" mtu "$mtu"

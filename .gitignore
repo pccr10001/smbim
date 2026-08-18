@@ -1,0 +1,4 @@
+*.apk
+*.ipk
+*.buildinfo
+*.manifest
