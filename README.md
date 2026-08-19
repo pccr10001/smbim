@@ -1,12 +1,10 @@
 # smbim OpenWrt feed
 
-A simple MBIM daemon handles eents from the modem.
-
 This repository is a self-contained OpenWrt custom feed for `smbim`, an
 event-driven MBIM data connection manager built on `libmbim-glib`.
 
-The package provides the `smbim` netifd protocol, `smbimd` executable,
-IPv4/IPv6 dynamic-interface integration, and LuCI protocol definition.
+The feed provides the `smbim` netifd protocol and daemon, plus an optional
+`luci-proto-smbim` package for LuCI protocol configuration.
 
 ## Add the feed
 
@@ -29,7 +27,9 @@ Enable the recommended C package:
 make defconfig
 make menuconfig
 # Select Network > WWAN > smbim as <M> or <*>.
+# Optionally select LuCI > Protocols > luci-proto-smbim.
 make package/feeds/smbim/smbim/compile V=s
+make package/feeds/smbim/luci-proto-smbim/compile V=s
 ```
 
 The result is written below `bin/packages/`. Current OpenWrt releases produce
@@ -49,15 +49,16 @@ Then run the same feed update, install, and compile commands shown above.
 ## Repository layout
 
 ```text
-packages/net/
-|-- smbim/                 # Native C implementation
+packages/
+|-- luci/luci-proto-smbim/ # LuCI protocol definition
+`-- net/smbim/             # Native C implementation
     |-- Makefile
     |-- src/
     `-- tests/
 ```
 
-Each recipe copies its local `src/` directory into the OpenWrt build directory,
-so the feed does not download a second source repository.
+The native package copies its local `src/` directory into the OpenWrt build
+directory, so the feed does not download a second source repository.
 
 ## C implementation safety model
 

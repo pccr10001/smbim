@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=smbim
 PKG_VERSION:=0.1.0
-PKG_RELEASE:=3
+PKG_RELEASE:=4
 
 PKG_MAINTAINER:=pccr10001
 PKG_LICENSE:=MIT
@@ -46,15 +46,12 @@ define Build/Compile
 endef
 
 define Package/smbim/install
-	$(INSTALL_DIR) $(1)/usr/bin $(1)/lib/netifd/proto $(1)/usr/libexec \
-		$(1)/www/luci-static/resources/protocol
+	$(INSTALL_DIR) $(1)/usr/bin $(1)/lib/netifd/proto $(1)/usr/libexec
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/smbimd $(1)/usr/bin/smbimd
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/lib/netifd/proto/smbim.sh \
 		$(1)/lib/netifd/proto/smbim.sh
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/files/usr/libexec/smbim-netifd \
 		$(1)/usr/libexec/smbim-netifd
-	$(INSTALL_DATA) $(PKG_BUILD_DIR)/luci-static/resources/protocol/smbim.js \
-		$(1)/www/luci-static/resources/protocol/smbim.js
 endef
 
 $(eval $(call BuildPackage,smbim))
